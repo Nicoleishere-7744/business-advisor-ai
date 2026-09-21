@@ -1,0 +1,259 @@
+// اسکیمای پایگاه داده پلتفرم مشاوره کسب‌وکار
+//
+// نکته مهم درباره سازگاری SQLite (توسعه) و PostgreSQL (پروداکشن):
+// از enum بومی، آرایه و ستون Json استفاده نمی‌کنیم. همه‌جا String است و
+// مقادیر مجاز به صورت ثابت در src/lib/constants.ts نگهداری می‌شوند.
+// برای سوییچ provider از `npm run db:sqlite` یا `npm run db:pg` استفاده کنید.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+/// کاربر پلتفرم؛ هویت اصلی شماره موبایل است (فرمت E.164 مثل +989121234567)
+model User {
+  id        String   @id @default(cuid())
+  phone     String   @unique
+  fullName  String?
+  email     String?
+  /// "user" یا "admin"
+  role      String   @default("user")
+  isBlocked Boolean  @default(false)
+  lastLoginAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  consultations Consultation[]
+  payments      Payment[]
+  aiUsageLogs   AiUsageLog[]
+  auditLogs     AdminAuditLog[]
+
+  @@index([createdAt])
+}
+
+/// کد یک‌بارمصرف ورود؛ فقط هش کد ذخیره می‌شود
+model OtpCode {
+  id         String    @id @default(cuid())
+  phone      String
+  codeHash   String
+  expiresAt  DateTime
+  attempts   Int       @default(0)
+  consumedAt DateTime?
+  ip         String?
+  createdAt  DateTime  @default(now())
+
+  @@index([phone, createdAt])
+  @@index([expiresAt])
+}
+
+/// محدودسازی نرخ درخواست‌ها (پنجره ثابت)
+model RateLimit {
+  key         String   @id
+  count       Int      @default(0)
+  windowStart DateTime @default(now())
+
+  @@index([windowStart])
+}
+
+/// فیلدهای فرم اطلاعات کسب‌وکار؛ از پنل ادمین قابل ویرایش است
+model FormField {
+  id          String   @id @default(cuid())
+  /// کلید یکتا برای استفاده در پرامپت به شکل {{key}}
+  key         String   @unique
+  label       String
+  /// text | textarea | number | select | multiselect
+  type        String   @default("text")
+  placeholder String?
+  helpText    String?
+  /// آرایه JSON از { value, label } برای select/multiselect
+  optionsJson String?
+  required    Boolean  @default(true)
+  minLength   Int?
+  maxLength   Int?
+  minValue    Int?
+  maxValue    Int?
+  order       Int      @default(0)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([isActive, order])
+}
+
+/// قالب پرامپتی که برای تولید گزارش به AI فرستاده می‌شود
+model PromptTemplate {
+  id           String   @id @default(cuid())
+  name         String
+  systemPrompt String
+  /// متن کاربر با جای‌گذاری {{field_key}}
+  userTemplate String
+  isActive     Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  consultations Consultation[]
+}
+
+/// مدل‌های هوش مصنوعی قابل انتخاب از پنل ادمین (اسلاگ OpenRouter)
+model AiModelConfig {
+  id          String   @id @default(cuid())
+  modelSlug   String   @unique
+  displayName String
+  description String?
+  temperature Float    @default(0.7)
+  maxTokens   Int      @default(4000)
+  isActive    Boolean  @default(true)
+  isDefault   Boolean  @default(false)
+  order       Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([isActive, order])
+}
+
+/// یک درخواست مشاوره از سوی کاربر
+model Consultation {
+  id               String   @id @default(cuid())
+  userId           String
+  /// awaiting_payment | paid | generating | completed | failed
+  status           String   @default("awaiting_payment")
+  /// شیء JSON از پاسخ‌های فرم به شکل { fieldKey: value }
+  answersJson      String
+  /// اسنپ‌شات فیلدهای فرم در لحظه ثبت (برای نمایش تاریخی)
+  fieldsSnapshot   String?
+  title            String?
+  modelSlug        String?
+  promptTemplateId String?
+  reportMarkdown   String?
+  errorMessage     String?
+  generationStartedAt DateTime?
+  completedAt      DateTime?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  promptTemplate PromptTemplate? @relation(fields: [promptTemplateId], references: [id])
+  payment        Payment?
+  messages       ChatMessage[]
+  aiUsageLogs    AiUsageLog[]
+
+  @@index([userId, createdAt])
+  @@index([status])
+}
+
+/// پیام‌های چت پیگیری پس از دریافت گزارش
+model ChatMessage {
+  id             String   @id @default(cuid())
+  consultationId String
+  /// user | assistant
+  role           String
+  content        String
+  createdAt      DateTime @default(now())
+
+  consultation Consultation @relation(fields: [consultationId], references: [id], onDelete: Cascade)
+
+  @@index([consultationId, createdAt])
+}
+
+/// تراکنش پرداخت درگاه زیبال
+model Payment {
+  id             String    @id @default(cuid())
+  userId         String
+  consultationId String    @unique
+  /// مبلغ نهایی به ریال
+  amount         Int
+  /// مبلغ پیش از تخفیف به ریال
+  originalAmount Int
+  discountCodeId String?
+  discountAmount Int       @default(0)
+  /// pending | paid | verified | failed | canceled
+  status         String    @default("pending")
+  trackId        String?   @unique
+  refNumber      String?
+  cardNumber     String?
+  zibalResult    Int?
+  zibalStatus    Int?
+  failureReason  String?
+  paidAt         DateTime?
+  verifiedAt     DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  consultation Consultation  @relation(fields: [consultationId], references: [id], onDelete: Cascade)
+  discountCode DiscountCode? @relation(fields: [discountCodeId], references: [id])
+
+  @@index([userId, createdAt])
+  @@index([status])
+}
+
+/// کد تخفیف
+model DiscountCode {
+  id        String    @id @default(cuid())
+  code      String    @unique
+  /// percent | amount
+  type      String    @default("percent")
+  /// درصد (۱ تا ۱۰۰) یا مبلغ ریالی
+  value     Int
+  minAmount Int       @default(0)
+  maxUses   Int?
+  usedCount Int       @default(0)
+  expiresAt DateTime?
+  isActive  Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  payments Payment[]
+}
+
+/// ثبت مصرف و هزینه هر فراخوانی هوش مصنوعی
+model AiUsageLog {
+  id               String   @id @default(cuid())
+  userId           String?
+  consultationId   String?
+  modelSlug        String
+  /// report | chat
+  kind             String   @default("report")
+  promptTokens     Int      @default(0)
+  completionTokens Int      @default(0)
+  totalTokens      Int      @default(0)
+  costUsd          Float    @default(0)
+  generationId     String?
+  latencyMs        Int      @default(0)
+  success          Boolean  @default(true)
+  errorMessage     String?
+  createdAt        DateTime @default(now())
+
+  user         User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
+  consultation Consultation? @relation(fields: [consultationId], references: [id], onDelete: SetNull)
+
+  @@index([createdAt])
+  @@index([modelSlug])
+}
+
+/// تنظیمات پلتفرم؛ مقادیر حساس با AES-256-GCM رمزنگاری می‌شوند
+model Setting {
+  key       String   @id
+  value     String
+  isSecret  Boolean  @default(false)
+  updatedAt DateTime @updatedAt
+}
+
+/// لاگ اقدامات مدیریتی
+model AdminAuditLog {
+  id         String   @id @default(cuid())
+  adminId    String?
+  action     String
+  targetType String?
+  targetId   String?
+  metaJson   String?
+  createdAt  DateTime @default(now())
+
+  admin User? @relation(fields: [adminId], references: [id], onDelete: SetNull)
+
+  @@index([createdAt])
+}

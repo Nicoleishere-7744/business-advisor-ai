@@ -1,0 +1,153 @@
+@import "tailwindcss";
+
+/* ---------- توکن‌های رنگ ---------- */
+:root {
+  --background: #f6f7f9;
+  --surface: #ffffff;
+  --surface-muted: #f1f3f6;
+  --foreground: #14181f;
+  --muted: #61697a;
+  --border: #e2e5eb;
+  --primary: #1f5fd0;
+  --primary-hover: #1a4fb0;
+  --primary-soft: #e8f0fe;
+  --success: #12805c;
+  --success-soft: #e3f6ee;
+  --warning: #a86000;
+  --warning-soft: #fdf1dd;
+  --danger: #c02626;
+  --danger-soft: #fdeaea;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-surface-muted: var(--surface-muted);
+  --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-border: var(--border);
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-soft: var(--primary-soft);
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --font-sans: var(--font-vazir), system-ui, sans-serif;
+}
+
+* {
+  border-color: var(--border);
+}
+
+html {
+  color-scheme: light;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-vazir), "Segoe UI", Tahoma, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* اعداد فارسی در همه جا خوانا بمانند */
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type="number"] {
+  -moz-appearance: textfield;
+}
+
+/* ---------- استایل گزارش Markdown ---------- */
+.report-prose {
+  line-height: 2;
+  color: var(--foreground);
+}
+.report-prose > * + * {
+  margin-top: 1rem;
+}
+.report-prose h1 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin-top: 2rem;
+}
+.report-prose h2 {
+  font-size: 1.25rem;
+  font-weight: 700;
+  margin-top: 2rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--border);
+}
+.report-prose h3 {
+  font-size: 1.05rem;
+  font-weight: 700;
+  margin-top: 1.5rem;
+}
+.report-prose ul,
+.report-prose ol {
+  padding-inline-start: 1.5rem;
+}
+.report-prose ul {
+  list-style: disc;
+}
+.report-prose ol {
+  list-style: decimal;
+}
+.report-prose li + li {
+  margin-top: 0.375rem;
+}
+.report-prose strong {
+  font-weight: 700;
+}
+.report-prose a {
+  color: var(--primary);
+  text-decoration: underline;
+}
+.report-prose blockquote {
+  border-inline-start: 3px solid var(--primary);
+  padding-inline-start: 1rem;
+  color: var(--muted);
+}
+.report-prose code {
+  background: var(--surface-muted);
+  padding: 0.1rem 0.35rem;
+  border-radius: 0.35rem;
+  font-size: 0.9em;
+}
+.report-prose pre {
+  background: var(--surface-muted);
+  padding: 1rem;
+  border-radius: 0.75rem;
+  overflow-x: auto;
+}
+.report-prose table {
+  width: 100%;
+  border-collapse: collapse;
+  display: block;
+  overflow-x: auto;
+}
+.report-prose th,
+.report-prose td {
+  border: 1px solid var(--border);
+  padding: 0.5rem 0.75rem;
+  text-align: right;
+}
+.report-prose th {
+  background: var(--surface-muted);
+  font-weight: 700;
+}
+
+/* ---------- چاپ ---------- */
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  body {
+    background: #fff;
+  }
+}
